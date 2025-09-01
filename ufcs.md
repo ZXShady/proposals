@@ -43,15 +43,14 @@ back()                | 2 (const + non-const) | 1 (const only)             | str
 size() / length()     | 1                     | 1                          | Identical.
 max_size()            | 1                     | 1                          | Identical.
 empty()               | 1                     | 1                          | Identical.
-data()                | 2 (const + non-const) | 1 (const only)             | string's non-const is C++17+.
-c_str()               | 1                     | 1                          | Identical (both const only).
+(both const only).
 begin() / end()       | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
 cbegin() / cend()     | 1                     | 1                          | Identical (both const only).
 rbegin() / rend()     | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
 crbegin() / crend()   | 1                     | 1                          | Identical (both const only).
 copy()                | 1                     | 1                          | Identical (both const only).
 substr()              | 1                     | 1                          | Different return types.
-compare()             | 6+                    | 6+                         | Similar overload sets.
+compare()             | 6                    | 6                         | Similar overload sets.
 find()                | 4                     | 4                          | Similar overload sets.
 rfind()               | 4                     | 4                          | Similar overload sets.
 find_first_of()       | 4                     | 4                          | Similar overload sets.
@@ -59,7 +58,7 @@ find_last_of()        | 4                     | 4                          | Sim
 find_first_not_of()   | 4                     | 4                          | Similar overload sets.
 find_last_not_of()    | 4                     | 4                          | Similar overload sets.
 
-There is also 0 reason to limit all of these functions to only apply on std::string & std::string_view and not other types that are string-like like a `vector<char>`,`span<char>`
+There is also 0 reason to limit all of these functions to only apply on std::string & std::string_view and not other types that are string-like like a `vector<char>`,`span<char>`. 
 
 the standard could instead provide free overloads for these
 
