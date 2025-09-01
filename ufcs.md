@@ -30,55 +30,69 @@ The primary goal of this proposal is to provide a fluent, member-like calling sy
 
 4. Non-Breaking: This change is purely additive. No existing code can be affected.
 
-5. Preserved API. what the class provides is what is needed all other can be implemented as free functions on top of it, but however alot of classes implement  convenience members for simplicity like `std::string` 80% of the api of `std::string` can be free functions but they are members for simplicity, this creates unnecessary bloat, as for example the entire `std::string_view` API is the exaxt same as `std::string` yet it needed all those member functions to be api compatible if instead they were free functions it would be written once and used for any string-like type, the entire monadic api for std::optional,std::expected is the same but yet it is a member function purely for left to right syntax.
+5. Promotes Non-Member, Non-Friend Interfaces & Generic Reuse. A significant class of member functions are convenience functions that do not require access to private class state. This proposal provides a clear and fluent syntax for implementing such functions as non-members, reducing class API bloat and dramatically increasing reusability across types.
 
+The classic example is the similarity between the purely const interfaces of std::string and std::string_view. std::string_view had to reimplement this entire interface as members, leading to significant duplication. Crucially, these functions are fundamentally algorithms that operate on contiguous ranges, but their member-only implementation locks them to specific standard types.
 
+This proposal would allow a single set of generic, non-member functions to provide this functionality for any compatible type, enabling a fluent syntax without requiring every type to implement its own members.
 
-Member Function       | std::string Overloads | std::string_view Overloads | Primary Difference
-----------------------|-----------------------|----------------------------|-------------------
-operator[]            | 2 (const + non-const) | 1 (const only)             | string can modify.
-at()                  | 2 (const + non-const) | 1 (const only)             | string can modify.
-front()               | 2 (const + non-const) | 1 (const only)             | string can modify.
-back()                | 2 (const + non-const) | 1 (const only)             | string can modify.
-size() / length()     | 1                     | 1                          | Identical.
-max_size()            | 1                     | 1                          | Identical.
-empty()               | 1                     | 1                          | Identical.
-(both const only).
-begin() / end()       | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
-cbegin() / cend()     | 1                     | 1                          | Identical (both const only).
-rbegin() / rend()     | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
-crbegin() / crend()   | 1                     | 1                          | Identical (both const only).
-copy()                | 1                     | 1                          | Identical (both const only).
-substr()              | 1                     | 1                          | Different return types.
-compare()             | 6                    | 6                         | Similar overload sets.
-find()                | 4                     | 4                          | Similar overload sets.
-rfind()               | 4                     | 4                          | Similar overload sets.
-find_first_of()       | 4                     | 4                          | Similar overload sets.
-find_last_of()        | 4                     | 4                          | Similar overload sets.
-find_first_not_of()   | 4                     | 4                          | Similar overload sets.
-find_last_not_of()    | 4                     | 4                          | Similar overload sets.
+Shared const Member Functions: std::string and std::string_view
 
-There is also 0 reason to limit all of these functions to only apply on std::string & std::string_view and not other types that are string-like like a `vector<char>`,`span<char>`. 
+Member Function       | Shared Overloads
+----------------------|-----------------
+size()                | 1
+length()              | 1
+max_size()            | 1
+empty()               | 1
+data()                | 1
+cbegin() / cend()     | 1
+crbegin() / crend()   | 1
+copy()                | 1
+substr()              | 1
+starts_with()         | 4
+ends_with()           | 4
+compare()             | 9
+find()                | 4
+rfind()               | 4
+find_first_of()       | 4
+find_last_of()        | 4
+find_first_not_of()   | 4
+find_last_not_of()    | 4
+Total                 | 48
 
-the standard could instead provide free overloads for these
+The power of this proposal is enabling a single, generic function to replace many specific members. This extends beyond strings to any compatible range:
 
 ```cpp
-template<class C>
-C sub(C& c,std::size_t begin,std::size_t end)
-{
-   auto it = c.begin() + begin;
-   return C(it,it+end);
+// A single generic 'sub' algorithm, written once
+namespace std {
+  template <class Rng>
+  auto sub(const Rng& r, std::size_t pos, std::size_t count) {
+      auto it = r.begin() + pos;
+      return std::decay_t<Rng>(it, it + std::min(count, r.size() - pos));
+  }
+  template <class Rng,class Rng2>
+  auto starts_with(const Rng& obj,const Rng2& other ) {
+       // implementation unimportant
+       return obj.std::sub(0,other.size()) == other; 
+  }
 }
 
-// call
-std::string s;
-std::span<int> span;
-std::vector<int> v;
-s.std::sub(3,5);
-sv.std::sub(1,9);
-v.std::sub(39,4);
-span.std::sub(3,6);
+// Used fluently across wildly different types
+std::string s = "hello world";
+std::string_view sv = s;
+std::vector<int> v = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+std::span<const int> sp = v;
+
+// All these work with the same fluent syntax
+auto part1 = s.std::sub(6, 5);    // "world"
+auto part2 = sv.std::sub(6, 5);   // "world"
+auto part3 = v.std::sub(6, 4);    // {7, 8, 9, 10}
+auto part4 = sp.std::sub(2, 3);   // {3, 4, 5}
+
+s.std::starts_with(sv); // true!
 ```
+
+This approach eliminates API duplication and allows new user-defined types to automatically gain this functionality simply by providing begin(), end(), and appropriate constructors.
 
 Just wrote a single function got alot of utility of it this is the main point of the paper.
 
