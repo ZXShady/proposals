@@ -58,7 +58,7 @@ find_first_of()       | 4
 find_last_of()        | 4
 find_first_not_of()   | 4
 find_last_not_of()    | 4
-Total                 | 48
+Total                 | 48 * 2 == 96
 
 The power of this proposal is enabling a single, generic function to replace many specific members. This extends beyond strings to any compatible range:
 
@@ -68,7 +68,7 @@ namespace std {
   template <class Rng>
   auto sub(const Rng& r, std::size_t pos, std::size_t count) {
       auto it = r.begin() + pos;
-      return std::decay_t<Rng>(it, it + std::min(count, r.size() - pos));
+      return Rng(it, it + std::min(count, r.size() - pos));
   }
   template <class Rng,class Rng2>
   auto starts_with(const Rng& obj,const Rng2& other ) {
@@ -90,13 +90,30 @@ auto part3 = v.std::sub(6, 4);    // {7, 8, 9, 10}
 auto part4 = sp.std::sub(2, 3);   // {3, 4, 5}
 
 s.std::starts_with(sv); // true!
+sp.std::starts_with(v); // true!
 ```
 
 This approach eliminates API duplication and allows new user-defined types to automatically gain this functionality simply by providing begin(), end(), and appropriate constructors.
 
-Just wrote a single function got alot of utility of it this is the main point of the paper.
 
 6. Benefits old code, there is alot of code from C that could benefit from left to right syntax like FILE* api.
+
+```cpp
+FILE* f = "File".::fopen("rb");
+long offset;
+int origin;
+f.::fseek(offset,origin);
+f.::fclose();
+
+char str[] = "  HELLO, WORLD!  ";
+// What is this even doing???
+char* result = strdup(strtok(strrchr(str, ' '), ","));
+// Clear
+char* result = str
+    .::strrchr(' ')     
+    .::strtok(",")
+    .::strdup();         
+```
 
 This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and most importantly syntax sugar!
 
@@ -195,7 +212,7 @@ obj.size(); // always call Obj::size(), will never try to call std::size.
 obj.std::size(); // always call std::size();
 ```
 
-This is an important differentiators, as it won't allow easier generic programming.
+This is an important differentiators, as it won't allow easier generic programming. it could later be added.
 
 Rational
 
