@@ -32,6 +32,57 @@ The primary goal of this proposal is to provide a fluent, member-like calling sy
 
 5. Preserved API. what the class provides is what is needed all other can be implemented as free functions on top of it, but however alot of classes implement  convenience members for simplicity like `std::string` 80% of the api of `std::string` can be free functions but they are members for simplicity, this creates unnecessary bloat, as for example the entire `std::string_view` API is the exaxt same as `std::string` yet it needed all those member functions to be api compatible if instead they were free functions it would be written once and used for any string-like type, the entire monadic api for std::optional,std::expected is the same but yet it is a member function purely for left to right syntax.
 
+
+
+Member Function       | std::string Overloads | std::string_view Overloads | Primary Difference
+----------------------|-----------------------|----------------------------|-------------------
+operator[]            | 2 (const + non-const) | 1 (const only)             | string can modify.
+at()                  | 2 (const + non-const) | 1 (const only)             | string can modify.
+front()               | 2 (const + non-const) | 1 (const only)             | string can modify.
+back()                | 2 (const + non-const) | 1 (const only)             | string can modify.
+size() / length()     | 1                     | 1                          | Identical.
+max_size()            | 1                     | 1                          | Identical.
+empty()               | 1                     | 1                          | Identical.
+data()                | 2 (const + non-const) | 1 (const only)             | string's non-const is C++17+.
+c_str()               | 1                     | 1                          | Identical (both const only).
+begin() / end()       | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
+cbegin() / cend()     | 1                     | 1                          | Identical (both const only).
+rbegin() / rend()     | 2 (const + non-const) | 1 (const only)             | string iterators can modify.
+crbegin() / crend()   | 1                     | 1                          | Identical (both const only).
+copy()                | 1                     | 1                          | Identical (both const only).
+substr()              | 1                     | 1                          | Different return types.
+compare()             | 6+                    | 6+                         | Similar overload sets.
+find()                | 4                     | 4                          | Similar overload sets.
+rfind()               | 4                     | 4                          | Similar overload sets.
+find_first_of()       | 4                     | 4                          | Similar overload sets.
+find_last_of()        | 4                     | 4                          | Similar overload sets.
+find_first_not_of()   | 4                     | 4                          | Similar overload sets.
+find_last_not_of()    | 4                     | 4                          | Similar overload sets.
+
+There is also 0 reason to limit all of these functions to only apply on std::string & std::string_view and not other types that are string-like like a `vector<char>`,`span<char>`
+
+the standard could instead provide free overloads for these
+
+```cpp
+template<class C>
+C sub(C& c,std::size_t begin,std::size_t end)
+{
+   auto it = c.begin() + begin;
+   return C(it,it+end);
+}
+
+// call
+std::string s;
+std::span<int> span;
+std::vector<int> v;
+s.std::sub(3,5);
+sv.std::sub(1,9);
+v.std::sub(39,4);
+span.std::sub(3,6);
+```
+
+Just wrote a single function got alot of utility of it this is the main point of the paper.
+
 6. Benefits old code, there is alot of code from C that could benefit from left to right syntax like FILE* api.
 
 This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and most importantly syntax sugar!
