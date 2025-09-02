@@ -211,7 +211,6 @@ using ::std:: size;
 obj.size(); // always call Obj::size(), will never try to call std::size.
 obj.std::size(); // always call std::size();
 ```
-
 This is an important differentiator as it won't allow easier generic programming. it could later be added.
 
 Rational for Design.
@@ -221,7 +220,6 @@ Rational for Design.
 · Non-Breaking: The meaning of all existing code is preserved. The change is purely additive.
 
 · Pure Syntax Sugar: The transformation is purely syntactic. x.ns::f(args) is entirely equivalent to ns::f(x, args) in every regard.
-
 
 Considered Alternatives
 
