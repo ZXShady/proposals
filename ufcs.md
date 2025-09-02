@@ -1,6 +1,9 @@
 # PXXXXR0: Explicit Extension Method Syntax via Qualified Member Call
 
-## Document #: PXXXXR0 Date: TODAY Project:Programming Language C++ Audience:EWG (Evolution Working Group) Reply to: Shady, mail.com
+## Document PXXXXR0
+Date: TODAY 
+Audience:EWG
+ Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 ### Table of Contents
 
@@ -269,5 +272,5 @@ void func(T t) {
 
 References
 
-· [N4174](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4174.pdf - Call syntax: x.f(y) vs. f(x,y)
+· [N4174](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4174.pdf) - Call syntax: x.f(y) vs. f(x,y)
 · [P0251R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0251r0.pdf) - Unified Call Syntax
