@@ -8,70 +8,188 @@ Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgX
 
 ### Table of Contents
 
-1. [Abstract](#Abstract)
-2. Motivation and Scope
-3. Before/After Examples
-4. Design & Proposal
-5. Technical Specification
-6. Considered Alternatives
-7. Limitations and Impact
-8. Acknowledgements
-9. References
+1. [Abstract](#abstract)
+2. [Motivation](#motivation)
+3. [Proposal](#proposal)
+4. [Examples](#examples)
+5. [Technical Specification](#technical-specification)
+6. [Considered Alternatives](#considered-alternatives)
+7. [Limitations and Impact](#limitations-and-impact)
+8. [References](#references)
 
 #### Abstract
 
-This paper proposes a new syntax for explicitly calling non-member functions using member function call syntax. The expression `obj.namespace::function()` will perform a qualified lookup for a function in the specified namespace and prepend `obj` as its first argument.
+This paper proposes a new syntax for explicitly calling non-member functions using member function call syntax. The expression `obj.namespace::callable()` will perform a qualified lookup for a function in the specified namespace and prepend `obj` as its first argument as if it was a rewrite expression.
 
-This approach provides pure syntactic sugar for calling free functions as extension methods. It is designed to be non-breaking, unambiguous, and simple to implement, as it does not interact with or change existing member lookup rules in any way, it is a simple rewrite.
+This approach provides pure syntactic sugar for calling free functions as member functions acting like extension methods. It is designed to be non-breaking, unambiguous, and simple to implement, as it does not interact with or change existing member lookup rules in any way, it is a simple rewrite.
 
-#### Motivation and Scope
+#### Motivation
 
-The primary goal of this proposal is to provide a fluent, member-like calling syntax for free functions that serve as "extension methods lite" for a type, without any of the downsides of implicit Unified Function Call Syntax (UFCS).
+The need for some form of Unified Function Call Syntax (UFCS) in C++ has been discussed for years. Papers on UFCS and Extension Methods, pipeline syntax, and the existence of `std::ranges::views` using `operator|` demonstrate strong demand for more fluent function call syntax.
 
-It is clear that some sort of UFCS needs to be in C++ from numerous papers like multiple UFCS papers and Pipeline rewrite operator ans the `std::ranges` `operator|` chains, it is clear that there is demand for some sort of UFCS in C++.
-
-This paper brings
+This paper provides a way to call free functions in a way that visually resembles member function calls, while avoiding the pitfalls of implicit lookup, breaking changes or virtual call ambiguity.
 
 1. Explicit Extension Methods: Allows libraries to provide functionality for existing types, enabling users to call these functions with a fluent syntax by explicitly naming the providing namespace (e.g., `vec.MyMath::normalize()`).
-2. Fluent Interfaces: Enables chaining for free functions (e.g., `value.MyLib::transform().MyLib::filter().MyLib::process())`.
 
-3. Absolute Clarity: The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace N. There is no possible ambiguity and it is clear that N::f cannot be a virtual function.
+2. Better tooling for IDEs
+    Today, IDEs struggle to offer useful auto completions for free functions like `std::size(x)` because they lack context on the object it will operate on :
 
-4. Non-Breaking: This change is purely additive. No existing code can be affected.
+    ```cpp
+    X x;
+    std::?? // / IDE can’t suggest std::size(x)
+    ```
 
-5. Promotes Non-Member, Non-Friend Interfaces & Generic Reuse. A significant class of member functions of many types are convenience functions that do not require access to private class state. This proposal provides a clear and fluent syntax for implementing such functions as non-members, reducing class API bloat and dramatically increasing reusability across types.
+    After this proposal
 
-The classic example is the similarity between the purely const interfaces of `std::string` and `std::string_view`. `std::string_view` had to reimplement this entire interface as members, leading to significant duplication for operations that just act on *data* but their member-only implementation locks them to specific standard types.
+    ```cpp
+    X x;
+    x.std:: // IDE can now suggest only applicable functions
+    ```
+    The later allows the IDE to filter out candidates much better and provide helpful auto complete, as you made your intent clear by asking for what functions can operate on `x`.
 
-This proposal would allow a single set of generic, non-member functions to provide this functionality for any compatible type, enabling a fluent syntax without requiring every type to implement its own members.
 
-Shared const Member Functions: `std::string` and `std::string_view`
+3. Fluent Interfaces
+    Enables clean chaining of function calls:
+    `range.MyLib::transform().MyLib::filter(odd).MyLib::process();`
 
-Member Function       | Shared Overloads
-----------------------|-----------------
-length()              | 1
-max_size()            | 1
-empty()               | 1
-cbegin() / cend()     | 1
-crbegin() / crend()   | 1
-copy()                | 1
-substr()              | 1
-starts_with()         | 4
-ends_with()           | 4
-compare()             | 9
-find()                | 4
-rfind()               | 4
-find_first_of()       | 4
-find_last_of()        | 4
-find_first_not_of()   | 4
-find_last_not_of()    | 4
-Total                 | 46 * 2 == 92
+4. Absolute Clarity: 
+    The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace N. There is no possible ambiguity and it is clear that `N::f` cannot be a virtual function.
 
-The power of this proposal is enabling a single, generic function to replace many specific members. This extends beyond strings to any compatible range:
+5. Non-Breaking: 
+    This is a purely additive feature. No existing code is impacted. No current behavior changes.
 
-```cpp
-// A single generic 'sub' algorithm, written once
+6. Promotes Non-Member, Non-Friend Interfaces & Generic Reuse.
+     A significant class of member functions of many types are convenience functions that do not require access to private class state. This proposal provides a clear and fluent syntax for implementing such functions as non-members, reducing class API bloat and dramatically increasing reusability across types.
+
+    The classic example is the similarity between the purely const interfaces of `std::string` and `std::string_view`. `std::string_view` had to reimplement this entire interface as members, leading to significant duplication for operations that just act on *data* but their member-only implementation locks them to specific standard types.
+
+    This proposal would allow a single set of generic, non-member functions to provide this functionality for any compatible type, enabling a fluent syntax without requiring every type to implement its own members.
+
+    Shared const Member Functions: `std::string` and `std::string_view`
+
+    Member Function       | Shared Overloads
+    ----------------------|-----------------
+    length()              | 1
+    max_size()            | 1
+    empty()               | 1
+    cbegin() / cend()     | 1
+    crbegin() / crend()   | 1
+    copy()                | 1
+    substr()              | 1
+    starts_with()         | 4
+    ends_with()           | 4
+    compare()             | 9
+    find()                | 4
+    rfind()               | 4
+    find_first_of()       | 4
+    find_last_of()        | 4
+    find_first_not_of()   | 4
+    find_last_not_of()    | 4
+    Total                 | 46 * 2 == 92 OVERLOADS!
+
+    Thats 92 overloads! For what is essentialy algorithms already in the C++ standard library like `std::find`,`std::cbegin` and others. This would get worse as the Standard Library ends up with more types with similiar interfaces (e.g `std::span` and `std::zstring_view`) more duplication will occur.
+
+    The power of this proposal is enabling a single, generic function to replace many specific members. This extends beyond strings to any compatible range, while not having second class citizen calling syntax or the inability to chain.
+
+    This approach eliminates API duplication and allows new user-defined types to automatically gain this functionality simply by providing `begin()`, `end()`, and appropriate constructors with free functions while not sacrificing readability
+
+7. Benefits old code without any rewrites like C apis unlike Extension Methods.
+
+
+> [!IMPORTANT]
+> This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
+
+
+#### Examples
+
+<table>
+<tr>
+<th>
+Before
+</th>
+<th align="left">
+After
+</th>
+</tr>
+
+<tr>
+<td  valign="top">
+
+<pre lang="cpp">
+namespace Math {
+    struct Vector { double x, y; };
+    // free function
+    Vector normalize(const Vector& v); 
+}
+namespace Containers {
+     class Array { ... };
+     void copy_to(const Array& from,Array& to);
+}
+
+Math::Vector v{1.0, 2.0};
+auto n1 = normalize(v);        // OK: call via ADL.
+auto n2 = Math::normalize(v);  // OK: qualified call
+
+Containers::Array a,b;
+// ambigious, is it copy from "a" to "b" or from "b" to "a"? 
+copy_to(a,b);                  // OK: ADL call
+
+int* p = nullptr;
+free(p);                       // OK: call
+::free(p);                     // OK: qualified call
+
+</pre>
+</td>
+<td  valign="top">
+<pre lang="cpp">
+namespace Math {
+    struct Vector { double x, y; };
+    // free function
+    Vector normalize(const Vector& v);
+}
+namespace Containers {
+     class Array { ... };
+     void copy_to(const Array& from,Array& to);
+}
+
+Math::Vector v{1.0, 2.0};
+auto n1 = normalize(v);         // OK: traditional call
+auto n2 = Math::normalize(v);   // OK: qualified call
+auto n3 = v.Math::normalize();  // OK: new explicit extension call
+
+Containers::Array a,b:
+a.Containers::copy_to(b); // explicit function used and clear where the copy is happening.
+
+int* p = nullptr;
+// p.free(); // ERROR: int* has no members
+p.::free();                     // OK: calls ::free(p)
+
+</pre>
+</td>
+
+</table>
+
+The syntax provides a clear visual distinction and works for any namespace effectivly making every free function usable as an extension method by just specfiying the namespace.
+
+Example 2: Code reuse without sacrificing chaining
+
+<table>
+<tr>
+<th>
+Before
+</th>
+<th align="left">
+After
+</th>
+</tr>
+
+<tr>
+<td  valign="top">
+
+<pre lang="cpp">
+
 namespace std {
+  // A single generic 'sub' algorithm, written once
   template <class Rng>
   auto sub(const Rng& r, std::size_t pos, std::size_t count) {
       auto it = r.begin() + pos;
@@ -79,12 +197,47 @@ namespace std {
   }
   template <class Rng,class Rng2>
   auto starts_with(const Rng& obj,const Rng2& other ) {
-       // implementation unimportant
+       // MISTAKE! no qualification for 'sub'. an overload can be injected here
+       return sub(obj,0,other.size()) == other; 
+  }
+}
+
+// Used across wildly different types
+std::string s = "hello world";
+std::string_view sv = s;
+std::vector<int> v = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+std::span<const int> sp = v;
+
+auto part1 = std::sub(s,6, 5);    // "world"
+auto part2 = std::sub(sv,6, 5);   // "world"
+auto part3 = std::sub(v,6, 4);    // {7, 8, 9, 10}
+auto part4 = std::sub(sp,2, 3);   // {3, 4, 5}
+
+// does not read like English.
+std::starts_with(s,sv); // true!
+std::starts_with(sp,v); // true!
+
+// awkard chaining inside out reading
+std::starts_with(std::sub(sv,6,5),"world");
+
+</pre>
+</td>
+<td  valign="top">
+<pre lang="cpp">
+namespace std {
+  // A single generic 'sub' algorithm, written once
+  template <class Rng>
+  auto sub(const Rng& r, std::size_t pos, std::size_t count) {
+      auto it = r.begin() + pos;
+      return Rng(it, it + std::min(count, r.size() - pos));
+  }
+  template <class Rng,class Rng2>
+  auto starts_with(const Rng& obj,const Rng2& other ) {
        return obj.std::sub(0,other.size()) == other; 
   }
 }
 
-// Used fluently across wildly different types
+
 std::string s = "hello world";
 std::string_view sv = s;
 std::vector<int> v = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -96,210 +249,156 @@ auto part2 = sv.std::sub(6, 5);   // "world"
 auto part3 = v.std::sub(6, 4);    // {7, 8, 9, 10}
 auto part4 = sp.std::sub(2, 3);   // {3, 4, 5}
 
+// Reads like English!
 s.std::starts_with(sv); // true!
 sp.std::starts_with(v); // true!
 
-// free chaining
+// free chaining left-to-right reading.
 sv.std::sub(6,5).std::starts_with("world");
+</pre>
+</td>
 
-// without chaining
-starts_with(sub(sv,6,5))
-```
+</table>
 
-This approach eliminates API duplication and allows new user-defined types to automatically gain this functionality simply by providing begin(), end(), and appropriate constructors with free functions while not having second class citizen syntax.
+#### Technical Specification
 
+Note the author has little wording experience.
 
-6. Benefits old code, there is alot of code from C that could benefit from left to right syntax like FILE* api.
+For [expr.call] insert
 
+If the postfix-expression names a destructor or pseudo-destructor ([expr.prim.id.dtor]), the type of the function call expression is void; otherwise, the type of the function call expression is the return type of the statically chosen function (i.e., ignoring the virtual keyword), even if the type of the function actually called is different.
+If the postfix-expression names a pseudo-destructor (in which case the postfix-expression is a possibly-parenthesized class member access), the function call destroys the object of scalar type denoted by the object expression of the class member access ([expr.ref], [basic.life])<u>; otherwise if the postfix-expression of the form `E1.N::f(args...)` where `N::f` is a qualified name designating a callable entity declared at namespace scope is treated as a syntactic transformation equivalent to the function call expression `N::f(E1, args...)`, where `args...` is the possibility empty parenthesized list of arguments that follow.
+
+[Example:
 ```cpp
-FILE* f = "File".::fopen("rb");
-long offset;
-int origin;
-f.::fseek(offset,origin);
-f.::fclose();    
-```
-
-This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
-
-Before/After Examples
-
-Before this proposal:
-
-```cpp
-namespace Math {
-    struct Vector { double x, y; };
-    Vector normalize(const Vector& v); // free function
+namespace A {
+  struct B { void c();}; // 1
+  void c(B&); // 2
 }
-
-namespace Containers {
-     class Array { ... };
-     void copy_to(const Array& from,Array& to);
-};
-Math::Vector v{1.0, 2.0};
-auto n1 = normalize(v);        // OK: traditional call via ADL.
-auto n2 = Math::normalize(v);  // OK: qualified call
-// auto n3 = v.normalize();    // Error: 'normalize' is not a member
-// v.Math::normalize();        // Error: invalid syntax.
-
-Containers::Array a,b;
-copy_to(a,b); // copy from "a" to "b" or from "b" to "a"? 
-// For built-in types and C functions:
-int* p = nullptr;
-// p.free();                   // Error: int* has no members 
-free(p);                       // OK: traditional call
-::free(p);                     // OK: explicitly qualified
+A::B b;
+b.c(); // calls 1
+b.A::c(); // calls 2 equalivent to A::c(b)
 ```
+— end example]
+</u>
+#### Proposal
 
-After this proposal:
+The proposal utilizes the existing grammar for `operator.` but defines a new path for previously invalid syntax to enable calling free functions (or any functor) as member functions.
+
+
+
+
+For a call expression of the form `x.ns::f(args)`: 
+
+> [!NOTE]
+> The namespace cannot be omitted even if the current scope is the same namespace
+
+A rewrite will happen as if you had written `ns::f(x,args)` all usual rules apply.
+
+However `using` declarations are ignored.
 
 ```cpp
-namespace Math {
-    struct Vector { double x, y; };
-    Vector normalize(const Vector& v); // free function
-}
-
-namespace Containers {
-     class Array { ... };
-     void copy_to(const Array& from,Array& to);
-};
-
-Math::Vector v{1.0, 2.0};
-auto n1 = normalize(v);         // OK: traditional call
-auto n2 = Math::normalize(v);   // OK: qualified call
-auto n3 = v.Math::normalize();  // OK: new explicit extension call
-
-Containers::Array a,b:
-a.Containers::copy_to(b); // explicit function used and clear where the copy is happening.
-// For built-in types and C functions:
-int* p = nullptr;
-// p.free(); // ERROR: int* has no members
-p.::free();                     // OK: calls ::free(p)
-
-namespace std {
-   // Written once
-   // Allows pointers, unique_ptr,shared_ptr,optional,expected to be used in a nice syntax no need to write it for every class.
-   auto value_or(auto& opt,auto default_)
-   {
-      return opt ? *opt : default_;
-   }
-}
-
-std::optional<int> opt;
-opt.std::value_or(0);
-int* pointer;
-pointer.std::value_or(0); 
-```
-
-The syntax provides a clear visual distinction and works for any namespace.
-
-Design & Proposal
-
-Syntax
-
-The proposal utilizes the existing grammar for postfix-expression but defines a new semantic path for previously invalid syntax to enable calling free functions as member functions.
-
-For a call expression of the form `x.ns::f(args)`: Note the namespace cannot be omitted even if the current scope is the same namespace.
-
-1. Qualified Lookup Only: The compiler performs a qualified lookup only for a function name `f` in the namespace `ns`. It does not perform any lookup for a member of `x` named `f`.
-2. Transformation: If a function ns::f is found, the expression is transformed into a function call with the object x prepended to the argument list: ns::f(x, args). Overload resolution is performed on this new call expression.
-3. Error Handling: If no function ns::f is found by qualified lookup, then it is an error.
-
-`using` declarations are ignored.
-
-```cpp
-using ::std:: size;
+using ::std::size;
 obj.size(); // always call Obj::size(), will never try to call std::size.
 obj.std::size(); // always call std::size();
 ```
-This is an important differentiator as it won't allow easier generic programming. it could later be added.
+This is an important difference in this paper vs others as it won't allow easier generic programming. it could later be added with the `using` declaration as an opt in to full UFCS with member chosen first then global function second semantics.
 
-Rational for Design.
+#### Rational for design.
 
-· Exclusive Lookup: x.ns::f() only finds free functions. x.f() only finds members. The two lookup mechanisms are completely separate and unambiguous.
+* Qualified Lookup, no ADL: `x.ns::f()` only finds free functions. `x.f()` only finds members. The two lookup mechanisms are completely separate and unambiguous to the reader no ADL can occur since the namespace must be explicitly qualified.
 
-· Non-Breaking: The meaning of all existing code is preserved. The change is purely additive.
+* Non-Breaking: The meaning of all existing code is preserved. The change is purely additive.
 
-· Pure Syntax Sugar: The transformation is purely syntactic. x.ns::f(args) is entirely equivalent to ns::f(x, args) in every regard.
+* Pure Syntax Sugar: The transformation is purely syntactic. `x.ns::f(args)` is entirely equivalent to `ns::f(x, args)` in every regard.
 
-Considered Alternatives
+#### Considered Alternatives
 
-1. Implicit UFCS: Previous proposals tried to make x.f() find free functions. This was rejected due to complexity and breaking changes. This proposal is the antithesis of that: it requires explicit qualification.
+1. Implicit UFCS: Previous proposals tried to make `x.f()` find free functions. This can lead to more complex overload resolution and breaking changes. This proposal is the antithesis of that: it requires explicit qualification.1
 
 2. Extension Methods: Previous proposals tried to make `x.f()` find free functions if the 1st argument used special constructs or names.
+    a simple example that can break is for example adding `starts_with` to `std::string_view`.
+    ```cpp
+    // imaginary syntax for extensions
+    size_t starts_with(const this std::string_view& a,std::string_view b)
+    {
+         return a.substr(0,b.size()) == b;
+    }
 
-a simple example that can break is for example adding `starts_with` to `std::string_view`.
+    std::string_view s;
+    s.starts_with("Hello");
+    ```
 
-```cpp
-// imaginary syntax for extensions
-size_t starts_with(const this std::string_view& a,std::string_view b)
-{
-    return a.substr(0,b.size()) == b;
-}
+    this is all good, until `std::string_view` itself gets a member named `starts_with` which takes a `const char*` that instead will be chosen.
 
-std::string_view s;
-s.starts_with("Hello");
-```
+    This is fine since both of the functions do the same thing in this case but what if they don't? you will get silent breakage and class writers can't gurantee what their api provides, and this is why this paper chosed an explicit syntax for that, it avoids all the issues and keeps the class interface stable and visually seperate from extensions.
+
+    An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official api and therefore the gurantee does not have to necessarily appy.
+
+3. Overloading operators like `std::ranges`'s `operator|`
+   *It works* but it is a workaround, and it results in bad debug codegen and worsens compile times that are already bad and requires weird functors to be used and it does not allow usage of other free functions you did not write.
 
 
-this is all fine and good, until `std::string_view` itself gets a member named `starts_with` which takes a `const char*` that instead will be chosen.
-
-This is fine since both of the functions do the same thing in this case but what if they don't you will get silent breakage and class writers can't gurantee what their api provides, and this is why this paper chosed an explicit syntax for that, it avoids all the issues.
-
-An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official api.
-
-3. Overloading operators like `std::ranges`
-   *It works* but it is a workaround, and it results in bad debug codegen and worsens compile times that are already bad.
-
-Example from cppreference
-
-https://en.cppreference.com/w/cpp/ranges.html
+This example was modified from this [cppreference](https://en.cppreference.com/w/cpp/ranges.html) example.
 
 ```cpp
-#include <iostream>
 #include <ranges>
-    constexpr auto even = [](int i) { return 0 == i % 2; };
-    constexpr auto square = [](int i) { return i * i; };
-void functional()
+constexpr auto even = [](int i) { return 0 == i % 2; };
+constexpr auto square = [](int i) { return i * i; };
+void nooptimize(volatile void*);
+int main()
 {
     auto const ints = {0, 1, 2, 3, 4, 5};
-
- #if PIPE
-     for (int i : ints | std::views::filter(even) | std::views::transform(square))
+#if PIPE
+    for (int i : ints | std::views::filter(even) | std::views::transform(square))
 #else
     for (int i : std::views::transform(std::views::filter(ints, even), square))
 #endif
-        std::cout << i << ' ';
+    nooptimize(&i);
 }
- 
-int main(){}
 ```
 
-[Godbolt](https://godbolt.org/z/ohsrbTxxK) shows doing DFLIP=1 increases the amount of assembly by a 100+ just for 
-using the nicer syntax, and worse compile times due to the magic needed to implement it.
+[Godbolt](https://godbolt.org/z/GT4edGYrj) shows doing `-DFLIP=1` increases the amount of assembly to 1213 from 1077 lines just for 
+using the nicer syntax, and worse compile times due to the magic needed to implement it and burden on library developers.
 
 #### Limitations and Impact
 
-Impact on the Standard: This is a pure extension to the language that can later aid in library design.
+Impact on the Standard: 
+    This is a pure extension to the language that can later aid in library design, There is no existing code that will be broken.
 
-Limitations: This mechanism does not aid in writing generic templates, as the namespace must be explicitly specified. Its primary benefit is syntactic convenience and fluency for non-generic code.
+Limitations:
 
-Example of Limitation:
+1. This proposal does not aid in writing generic templates, as the namespace must be explicitly specified. Its primary benefit is syntactic convenience for non-generic code
+    
+    ```cpp
+    // This works today and is not fully generic
+    template <typename T>
+    void func(T t) {
+        t.foo((; // Only finds t.foo();
+    }
 
-```cpp
-// This works today and is not fully generic
-template <typename T>
-void func(T t) {
-    t.foo((; // Only finds t.foo();
-}
+    // This proposal does NOT enable this:
+    template <typename T>
+    void func(T t) {
+        t.foo(); // Looks a member foo then an adl foo
+    }
+    ```
 
-// This proposal does NOT enable this:
-template <typename T>
-void func(T t) {
-    t.foo(); // Looks a member foo then an adl foo
-}
-```
+2. This proposal does not have a way currently to call hidden friends as members
+    
+    ```cpp
+    struct S {
+        friend void f(S& s) {}
+    };
 
-References
+    S s;
+    s.f(); // no member named f;
+    s.::f(); // no global namespace member named f
+    ```
 
-· [N4174](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4174.pdf) - Call syntax: x.f(y) vs. f(x,y)
-· [P0251R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0251r0.pdf) - Unified Call Syntax
+#### References
+
+* [N4174](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4174.pdf) - Call syntax: x.f(y) vs. f(x,y)
+* [P0251R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0251r0.pdf) - Unified Call Syntax
+* [N1585](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2004/n1585.pdf) - Extension Methods
+* [UTFS Histroy](https://brevzin.github.io/c++/2019/04/13/ufcs-history/) - Barry Revzin UFCS Histroy.
