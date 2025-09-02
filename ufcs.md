@@ -24,7 +24,7 @@ This approach provides pure syntactic sugar for calling free functions as extens
 
 The primary goal of this proposal is to provide a fluent, member-like calling syntax for free functions that serve as "extension methods lite" for a type, without any of the downsides of implicit Unified Function Call Syntax (UFCS).
 
-It is clear that some sort of UFCS needs to be in C++ from numerous papers like multiple UFCS papers and Pipeline rewrite operator, it is clear that there is demand for some sort of UFCS in C++.
+It is clear that some sort of UFCS needs to be in C++ from numerous papers like multiple UFCS papers and Pipeline rewrite operator ans the `std::ranges` `operator|` chains, it is clear that there is demand for some sort of UFCS in C++.
 
 This paper brings
 
