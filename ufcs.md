@@ -45,11 +45,9 @@ Shared const Member Functions: `std::string` and `std::string_view`
 
 Member Function       | Shared Overloads
 ----------------------|-----------------
-size()                | 1
 length()              | 1
 max_size()            | 1
 empty()               | 1
-data()                | 1
 cbegin() / cend()     | 1
 crbegin() / crend()   | 1
 copy()                | 1
@@ -63,7 +61,7 @@ find_first_of()       | 4
 find_last_of()        | 4
 find_first_not_of()   | 4
 find_last_not_of()    | 4
-Total                 | 48 * 2 == 96
+Total                 | 46 * 2 == 92
 
 The power of this proposal is enabling a single, generic function to replace many specific members. This extends beyond strings to any compatible range:
 
@@ -114,16 +112,7 @@ FILE* f = "File".::fopen("rb");
 long offset;
 int origin;
 f.::fseek(offset,origin);
-f.::fclose();
-
-char str[] = "  HELLO, WORLD!  ";
-// What is this even doing???
-char* result = strdup(strtok(strrchr(str, ' '), ","));
-// Clear
-char* result = str
-    .::strrchr(' ')     
-    .::strtok(",")
-    .::strdup();         
+f.::fclose();    
 ```
 
 This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
@@ -234,7 +223,7 @@ Considered Alternatives
 
 1. Implicit UFCS: Previous proposals tried to make x.f() find free functions. This was rejected due to complexity and breaking changes. This proposal is the antithesis of that: it requires explicit qualification.
 
-1. Extension Methods: Previous proposals tried to make `x.f()` find free functions if the 1st argument used special constructs or names.
+2. Extension Methods: Previous proposals tried to make `x.f()` find free functions if the 1st argument used special constructs or names.
 
 a simple example that can break is for example adding `starts_with` to `std::string_view`.
 
@@ -254,7 +243,7 @@ this is all fine and good, until `std::string_view` itself gets a member named `
 
 This is fine since both of the functions do the same thing in this case but what if they don't you will get silent breakage and class writers can't gurantee what their api provides, and this is why this paper chosed an explicit syntax for that, it avoids all the issues.
 
-An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same.
+An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official api.
 
 Limitations and Impact
 
