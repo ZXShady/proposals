@@ -1,9 +1,10 @@
-# PXXXXR0: Explicit Extension Method Syntax via Qualified Member Call
+# PXXXXR0: Alternative free function call syntax.
 
-## Document PXXXXR0
 Date: TODAY 
+
 Audience:EWG
- Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+
+Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 ### Table of Contents
 
@@ -248,7 +249,37 @@ This is fine since both of the functions do the same thing in this case but what
 
 An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official api.
 
-Limitations and Impact
+3. Overloading operators like `std::ranges`
+   *It works* but it is a workaround, and it results in bad debug codegen and worsens compile times that are already bad.
+
+Example from cppreference
+
+https://en.cppreference.com/w/cpp/ranges.html
+
+```cpp
+#include <iostream>
+#include <ranges>
+    constexpr auto even = [](int i) { return 0 == i % 2; };
+    constexpr auto square = [](int i) { return i * i; };
+void functional()
+{
+    auto const ints = {0, 1, 2, 3, 4, 5};
+
+ #if PIPE
+     for (int i : ints | std::views::filter(even) | std::views::transform(square))
+#else
+    for (int i : std::views::transform(std::views::filter(ints, even), square))
+#endif
+        std::cout << i << ' ';
+}
+ 
+int main(){}
+```
+
+[Godbolt](https://godbolt.org/z/ohsrbTxxK) shows doing DFLIP=1 increases the amount of assembly by a 100+ just for 
+using the nicer syntax, and worse compile times due to the magic needed to implement it.
+
+#### Limitations and Impact
 
 Impact on the Standard: This is a pure extension to the language that can later aid in library design.
 
