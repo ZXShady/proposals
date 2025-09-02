@@ -122,59 +122,43 @@ f.::fclose();
 This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
 
 Before/After Examples
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| Before                                                                      | After                                                                       |
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| namespace Math {                                                            | namespace Math {                                                            |
+|     struct Vector { double x, y; };                                         |     struct Vector { double x, y; };                                         |
+|     Vector normalize(const Vector& v);                                      |     Vector normalize(const Vector& v);                                      |
+| }                                                                           | }                                                                           |
+|                                                                             |                                                                             |
+| Math::Vector v{1.0, 2.0};                                                   | Math::Vector v{1.0, 2.0};                                                   |
+| auto n1 = normalize(v);                                                     | auto n1 = normalize(v);                                                     |
+| auto n2 = Math::normalize(v);                                               | auto n2 = Math::normalize(v);                                               |
+| // auto n3 = v.normalize();    // Error                                     | auto n3 = v.Math::normalize();  // OK                                       |
+| // v.Math::normalize();        // Error                                     | // Transformed to: Math::normalize(v)                                       |
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| namespace Containers {                                                      | namespace Containers {                                                      |
+|      class Array { ... };                                                   |      class Array { ... };                                                   |
+|      void copy_to(const Array& from,Array& to);                             |      void copy_to(const Array& from,Array& to);                             |
+| };                                                                          | };                                                                          |
+|                                                                             |                                                                             |
+| Containers::Array a,b;                                                      | Containers::Array a,b;                                                      |
+| copy_to(a,b); // Direction unclear                                          | a.Containers::copy_to(b); // Explicit and clear                             |
+|                                                                             | // Transformed to: Containers::copy_to(a, b)                                |
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| int* p = nullptr;                                                           | int* p = nullptr;                                                           |
+| // p.free();                   // Error                                     | p.::free();                    // OK                                        |
+| free(p);                       // OK                                        | free(p);                        // Still OK                                 |
+| ::free(p);                     // OK                                        | ::free(p);                      // Still OK                                 |
+|                                                                             | // Transformed to: ::free(p)                                                |
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
+| std::string_view sv = "hello world";                                        | std::string_view sv = "hello world";                                        |
+| auto result = starts_with(substr(sv, 6, 5), "world"); // Cumbersome        | auto result = sv.std::substr(6,5).std::starts_with("world"); // Fluent      |
+|                                                                             | // Transformed to: std::starts_with(std::substr(sv,6,5), "world")           |
++-----------------------------------------------------------------------------+-----------------------------------------------------------------------------+
 
-Before this proposal:
+Another example is having monadic functions for every optional like type.
 
 ```cpp
-namespace Math {
-    struct Vector { double x, y; };
-    Vector normalize(const Vector& v); // free function
-}
-
-namespace Containers {
-     class Array { ... };
-     void copy_to(const Array& from,Array& to);
-};
-Math::Vector v{1.0, 2.0};
-auto n1 = normalize(v);        // OK: traditional call via ADL.
-auto n2 = Math::normalize(v);  // OK: qualified call
-// auto n3 = v.normalize();    // Error: 'normalize' is not a member
-// v.Math::normalize();        // Error: invalid syntax.
-
-Containers::Array a,b;
-copy_to(a,b); // copy from "a" to "b" or from "b" to "a"? 
-// For built-in types and C functions:
-int* p = nullptr;
-// p.free();                   // Error: int* has no members 
-free(p);                       // OK: traditional call
-::free(p);                     // OK: explicitly qualified
-```
-
-After this proposal:
-
-```cpp
-namespace Math {
-    struct Vector { double x, y; };
-    Vector normalize(const Vector& v); // free function
-}
-
-namespace Containers {
-     class Array { ... };
-     void copy_to(const Array& from,Array& to);
-};
-
-Math::Vector v{1.0, 2.0};
-auto n1 = normalize(v);         // OK: traditional call
-auto n2 = Math::normalize(v);   // OK: qualified call
-auto n3 = v.Math::normalize();  // OK: new explicit extension call
-
-Containers::Array a,b:
-a.Containers::copy_to(b); // explicit function used and clear where the copy is happening.
-// For built-in types and C functions:
-int* p = nullptr;
-// p.free(); // ERROR: int* has no members
-p.::free();                     // OK: calls ::free(p)
-
 namespace std {
    // Written once
    // Allows pointers, unique_ptr,shared_ptr,optional,expected to be used in a nice syntax no need to write it for every class.
