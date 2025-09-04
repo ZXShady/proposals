@@ -4,7 +4,7 @@ Date: TODAY
 
 Audience:EWG
 
-Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+Reply to: Shady
 
 ### Table of Contents
 
@@ -20,7 +20,7 @@ Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgX
 
 #### Abstract
 
-This paper proposes a new syntax for explicitly calling non-member functions using member function call syntax. The expression `obj.namespace::callable()` will perform a qualified lookup for a function in the specified namespace and prepend `obj` as its first argument as if it was a rewrite expression.
+This paper proposes a new syntax for explicitly calling non-member functions using member function call syntax. The expression `obj.namespace::function()` will perform a qualified lookup for a function in the specified namespace and prepend `obj` as its first argument as if it was a rewrite expression.
 
 This approach provides pure syntactic sugar for calling free functions as member functions acting like extension methods. It is designed to be non-breaking, unambiguous, and simple to implement, as it does not interact with or change existing member lookup rules in any way, it is a simple rewrite.
 
@@ -95,30 +95,6 @@ This paper provides a way to call free functions in a way that visually resemble
     This approach eliminates API duplication and allows new user-defined types to automatically gain this functionality simply by providing `begin()`, `end()`, and appropriate constructors with free functions while not sacrificing readability
 
 7. Benefits old code without any rewrites like C apis unlike Extension Methods.
-
-8. Removes dependant context on templated member calls, since the compiler knows that the namespace type doesn't depend on a template parameter it can infer that it can't be ambiguous
-
-```cpp
-namespace X {
-template<class... Ts>
-struct Tuple {
-    template<int I>
-    auto get();
-};
-
-    template<int I,typename... Ts>
-    auto get(Tuple<Ts...>&);
-
-}
-
-template<class TupleLike>
-void f(TupleLike t)
-{
-    t.get<0>(); // ambiguous call requires "template" keyword to precede it.
-    X::get<0>(t); // clear, get must be a function
-    t.X::get<0>(); // THIS PAPER: clear X::get must be a function.
-}
-```
 
 > [!IMPORTANT]
 > This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
@@ -214,12 +190,12 @@ After
 
 namespace std {
   // A single generic 'sub' algorithm, written once
-  template <class Rng>
+  template &ltclass Rng>
   auto sub(const Rng& r, std::size_t pos, std::size_t count) {
       auto it = r.begin() + pos;
       return Rng(it, it + std::min(count, r.size() - pos));
   }
-  template <class Rng,class Rng2>
+  template &ltclass Rng,class Rng2>
   auto starts_with(const Rng& obj,const Rng2& other ) {
        // MISTAKE! no qualification for 'sub'. an overload can be injected here
        return sub(obj,0,other.size()) == other; 
@@ -250,12 +226,12 @@ std::starts_with(std::sub(sv,6,5),"world");
 <pre lang="cpp">
 namespace std {
   // A single generic 'sub' algorithm, written once
-  template <class Rng>
+  template &ltclass Rng>
   auto sub(const Rng& r, std::size_t pos, std::size_t count) {
       auto it = r.begin() + pos;
       return Rng(it, it + std::min(count, r.size() - pos));
   }
-  template <class Rng,class Rng2>
+  template &ltclass Rng,class Rng2>
   auto starts_with(const Rng& obj,const Rng2& other ) {
        return obj.std::sub(0,other.size()) == other; 
   }
@@ -286,7 +262,7 @@ sv.std::sub(6,5).std::starts_with("world");
 
 #### Technical Specification
 
-Rhe author has little wording experience.
+The author has little wording experience.
 
 #### Proposal
 
@@ -374,30 +350,31 @@ The syntax `x.ns::f()` is the exact same as `x.Base::f()` wouldn't there be ambi
 
 Lets see this code
 ```cpp
-namespace foo {
-template<int,typename T> bool bar(T,int) = delete;
+namespace Bar {
+template<int,typename T> bool Baz(T,int) = delete;
 };
 
 template<class T>
 bool f(T t)
 {
-    return t.foo::bar<0>(0); // the compiler can see that foo::bar is an entity at this point of definition
+    return t.Bar::Baz<0>(0); // the compiler can see that Bar::Baz is an entity at this point of definition
 }
 namespace Test {
-struct foo {
-
-    static constexpr auto bar = 0;
+struct Bar {
+    static constexpr auto Baz = 0;
 };
-struct B : foo {};
+struct Foo : Bar {};
 }
 int main(){
-    f(Test::B());
+    f(Test::Foo());
 }
 ```
 
-What is expected to happen if the paper is adopted? the compiler thinks `foo::bar<0>(0)` is a (wrong) chained comparison or a function call? Well even without this proposal the behavior seems inconsistent between compilers
+What is expected to happen if the paper is adopted? the compiler thinks `Bar::Baz<0>(0)` is a (wrong) chained comparison or a function call? Well even without this proposal the behavior seems inconsistent between compilers
 
+[Godbolt](https://godbolt.org/z/81WP9qxq7) shows GCC and MSVC failing to compile they are looking up Bar::Baz in the namespace instead of the Base class. while Clang does look up the base class.
 
+The author position is to make the compiler think that it is a function call to the namespaced entity.
 
 #### Limitations and Impact
 
