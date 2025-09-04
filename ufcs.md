@@ -14,8 +14,9 @@ Reply to: Shady, [shadyaa@outlook.com](https://www.youtube.com/watch?v=dQw4w9WgX
 4. [Examples](#examples)
 5. [Technical Specification](#technical-specification)
 6. [Considered Alternatives](#considered-alternatives)
-7. [Limitations and Impact](#limitations-and-impact)
-8. [References](#references)
+7. [Possible Issues](#possible-issues)
+8. [Limitations and Impact](#limitations-and-impact)
+9. [References](#references)
 
 #### Abstract
 
@@ -95,6 +96,29 @@ This paper provides a way to call free functions in a way that visually resemble
 
 7. Benefits old code without any rewrites like C apis unlike Extension Methods.
 
+8. Removes dependant context on templated member calls, since the compiler knows that the namespace type doesn't depend on a template parameter it can infer that it can't be ambiguous
+
+```cpp
+namespace X {
+template<class... Ts>
+struct Tuple {
+    template<int I>
+    auto get();
+};
+
+    template<int I,typename... Ts>
+    auto get(Tuple<Ts...>&);
+
+}
+
+template<class TupleLike>
+void f(TupleLike t)
+{
+    t.get<0>(); // ambiguous call requires "template" keyword to precede it.
+    X::get<0>(t); // clear, get must be a function
+    t.X::get<0>(); // THIS PAPER: clear X::get must be a function.
+}
+```
 
 > [!IMPORTANT]
 > This proposal explicitly does not solve the problem of generic code that calls a member function but wants to call a non member as well. Its value is in its simplicity and explicit intent and elegance.
@@ -262,36 +286,19 @@ sv.std::sub(6,5).std::starts_with("world");
 
 #### Technical Specification
 
-Note the author has little wording experience.
+Rhe author has little wording experience.
 
-For [expr.call] insert
-
-If the postfix-expression names a destructor or pseudo-destructor ([expr.prim.id.dtor]), the type of the function call expression is void; otherwise, the type of the function call expression is the return type of the statically chosen function (i.e., ignoring the virtual keyword), even if the type of the function actually called is different.
-If the postfix-expression names a pseudo-destructor (in which case the postfix-expression is a possibly-parenthesized class member access), the function call destroys the object of scalar type denoted by the object expression of the class member access ([expr.ref], [basic.life])<u>; otherwise if the postfix-expression of the form `E1.N::f(args...)` where `N::f` is a qualified name designating a callable entity declared at namespace scope is treated as a syntactic transformation equivalent to the function call expression `N::f(E1, args...)`, where `args...` is the possibility empty parenthesized list of arguments that follow.
-
-[Example:
-```cpp
-namespace A {
-  struct B { void c();}; // 1
-  void c(B&); // 2
-}
-A::B b;
-b.c(); // calls 1
-b.A::c(); // calls 2 equalivent to A::c(b)
-```
-— end example]
-</u>
 #### Proposal
 
 The proposal utilizes the existing grammar for `operator.` but defines a new path for previously invalid syntax to enable calling free functions (or any functor) as member functions.
 
-
-
-
 For a call expression of the form `x.ns::f(args)`: 
 
 > [!NOTE]
-> The namespace cannot be omitted even if the current scope is the same namespace
+> The namespace cannot be omitted even if the current scope is the same namespace.
+
+> [!NOTE]
+> Unlike normal member access `x` does not have to a complete type.
 
 A rewrite will happen as if you had written `ns::f(x,args)` all usual rules apply.
 
@@ -361,10 +368,43 @@ int main()
 [Godbolt](https://godbolt.org/z/GT4edGYrj) shows doing `-DFLIP=1` increases the amount of assembly to 1213 from 1077 lines just for 
 using the nicer syntax, and worse compile times due to the magic needed to implement it and burden on library developers.
 
+#### Possible Issues
+
+The syntax `x.ns::f()` is the exact same as `x.Base::f()` wouldn't there be ambiguities if there is both a namespace and a base class named like that?
+
+Lets see this code
+```cpp
+namespace foo {
+template<int,typename T> bool bar(T,int) = delete;
+};
+
+template<class T>
+bool f(T t)
+{
+    return t.foo::bar<0>(0); // the compiler can see that foo::bar is an entity at this point of definition
+}
+namespace Test {
+struct foo {
+
+    static constexpr auto bar = 0;
+};
+struct B : foo {};
+}
+int main(){
+    f(Test::B());
+}
+```
+
+What is expected to happen if the paper is adopted? the compiler thinks `foo::bar<0>(0)` is a (wrong) chained comparison or a function call? Well even without this proposal the behavior seems inconsistent between compilers
+
+
+
 #### Limitations and Impact
 
 Impact on the Standard: 
     This is a pure extension to the language that can later aid in library design, There is no existing code that will be broken.
+
+
 
 Limitations:
 
