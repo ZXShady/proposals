@@ -22,7 +22,7 @@ Reply to: Shady
 
 This paper proposes a new syntax for explicitly calling non-member functions using member function call syntax. The expression `obj.namespace::function()` will perform a qualified lookup for a function in the specified namespace and prepend `obj` as its first argument as if it was a rewrite expression.
 
-This approach provides pure syntactic sugar for calling free functions as member functions acting like extension methods. It is designed to be non-breaking, unambiguous, and simple to implement, as it does not interact with or change existing member lookup rules in any way, it is a simple rewrite.
+This approach provides pure syntactic sugar for calling free functions as member functions acting like extension methods. It is designed to be non-breaking, unambiguous, and should be simple to implement, as it does not interact with or change existing member lookup rules in a major way unlike ADL, it is a simple rewrite.
 
 #### Motivation
 
@@ -30,14 +30,14 @@ The need for some form of Unified Function Call Syntax (UFCS) in C++ has been di
 
 This paper provides a way to call free functions in a way that visually resembles member function calls, while avoiding the pitfalls of implicit lookup, breaking changes or virtual call ambiguity.
 
-1. Explicit Extension Methods: Allows libraries to provide functionality for existing types, enabling users to call these functions with a fluent syntax by explicitly naming the providing namespace (e.g., `vec.MyMath::normalize()`).
+1. Explicit Extension Methods: Allows libraries to provide functionality for existing types, enabling users to call these functions with a fluent syntax by explicitly naming the providing namespace (e.g., `matrix.Math::translate(position)`).
 
 2. Better tooling for IDEs
     Today, IDEs struggle to offer useful auto completions for free functions like `std::size(x)` because they lack context on the object it will operate on :
 
     ```cpp
     X x;
-    std::?? // / IDE can’t suggest std::size(x)
+    std::?? // IDE can’t suggest std::size(x) has to suggest everything
     ```
 
     After this proposal
@@ -48,19 +48,18 @@ This paper provides a way to call free functions in a way that visually resemble
     ```
     The later allows the IDE to filter out candidates much better and provide helpful auto complete, as you made your intent clear by asking for what functions can operate on `x`.
 
-
 3. Fluent Interfaces
     Enables clean chaining of function calls:
     `range.MyLib::transform().MyLib::filter(odd).MyLib::process();`
 
 4. Absolute Clarity: 
-    The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace N. There is no possible ambiguity and it is clear that `N::f` cannot be a virtual function.
+    The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace `N`. There is no ambiguity and it is clear that `N::f` cannot be a virtual function.
 
 5. Non-Breaking: 
     This is a purely additive feature. No existing code is impacted. No current behavior changes.
 
 6. Promotes Non-Member, Non-Friend Interfaces & Generic Reuse.
-     A significant class of member functions of many types are convenience functions that do not require access to private class state. This proposal provides a clear and fluent syntax for implementing such functions as non-members, reducing class API bloat and dramatically increasing reusability across types.
+     A significant class of member functions of many types are convenience functions that do not require access to private class state. This proposal provides a clear syntax for implementing such functions as non-members, reducing class API bloat and dramatically increasing reusability across types.
 
     The classic example is the similarity between the purely const interfaces of `std::string` and `std::string_view`. `std::string_view` had to reimplement this entire interface as members, leading to significant duplication for operations that just act on *data* but their member-only implementation locks them to specific standard types.
 
@@ -314,9 +313,7 @@ This is an important difference in this paper vs others as it won't allow easier
 
     this is all good, until `std::string_view` itself gets a member named `starts_with` which takes a `const char*` that instead will be chosen.
 
-    This is fine since both of the functions do the same thing in this case but what if they don't? you will get silent breakage and class writers can't gurantee what their api provides, and this is why this paper chosed an explicit syntax for that, it avoids all the issues and keeps the class interface stable and visually seperate from extensions.
-
-    An API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official api and therefore the gurantee does not have to necessarily appy.
+    This is fine since both of the functions do the same thing in this case but what if they don't? you will get silent breakage and class writers can't gurantee what their api provides, and this is why this paper chosed an explicit syntax, it avoids the issues with implicit lookup and keeps the class interface stable and visually seperate from extensions because for example an API can provide a gurantee that all accesses of its const member functions are thread-safe, extension methods would break that as both `x.ext()` and `x.mem()` look the same, while this proposal provides explicit intent `x.Utils::ext()` is clear that it is not part of the official API and therefore the gurantee does not have to necessarily appy.
 
 3. Overloading operators like `std::ranges`'s `operator|`
    *It works* but it is a workaround, and it results in bad debug codegen and worsens compile times that are already bad and requires weird functors to be used and it does not allow usage of other free functions you did not write.
@@ -343,6 +340,15 @@ int main()
 
 [Godbolt](https://godbolt.org/z/GT4edGYrj) shows doing `-DFLIP=1` increases the amount of assembly to 1213 from 1077 lines just for 
 using the nicer syntax, and worse compile times due to the magic needed to implement it and burden on library developers.
+
+while with the paper 
+
+```cpp
+    ints.std::views::filter(even)
+        .std::views::transform(square);
+```
+
+would result in quick debug codegen and readability and faster compile times.
 
 #### Possible Issues
 
