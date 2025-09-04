@@ -186,7 +186,6 @@ After
 <td  valign="top">
 
 <pre lang="cpp">
-
 namespace std {
   // A single generic 'sub' algorithm, written once
   template &ltclass Rng>
