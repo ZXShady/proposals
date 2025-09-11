@@ -16,7 +16,8 @@ Reply to: Shady
 6. [Considered Alternatives](#considered-alternatives)
 7. [Possible Issues](#possible-issues)
 8. [Limitations and Impact](#limitations-and-impact)
-9. [References](#references)
+9. [Implementation](#implementation)
+10. [References](#references)
 
 #### Abstract
 
@@ -28,7 +29,7 @@ This approach provides pure syntactic sugar for calling free functions as member
 
 The need for some form of Unified Function Call Syntax (UFCS) in C++ has been discussed for years. Papers on UFCS and Extension Methods, pipeline syntax, and the existence of `std::ranges::views` using `operator|` demonstrate strong demand for more fluent function call syntax.
 
-This paper provides a way to call free functions in a way that visually resembles member function calls, while avoiding the pitfalls of implicit lookup, breaking changes or virtual call ambiguity.
+This paper provides a way to call free functions in a way that visually resembles member function calls, while avoiding the pitfalls of implicit lookup, major breaking changes or virtual call ambiguity.
 
 1. Explicit Extension Methods: Allows libraries to provide functionality for existing types, enabling users to call these functions with a fluent syntax by explicitly naming the providing namespace (e.g., `matrix.Math::translate(position)`).
 
@@ -52,10 +53,10 @@ This paper provides a way to call free functions in a way that visually resemble
     Enables clean chaining of function calls:
     `range.MyLib::transform().MyLib::filter(odd).MyLib::process();`
 
-4. Absolute Clarity: 
-    The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace `N`. There is no ambiguity and it is clear that `N::f` cannot be a virtual function.
+4. Clarity: 
+    The syntax `x.f()` continues to find only members. The new syntax `x.N::f()` finds only free functions in namespace `N`. There is no ambiguity for the reader and it is clear that `N::f` cannot be a virtual function.
 
-5. Non-Breaking: 
+5. No Major Breaking: 
     This is a purely additive feature. No existing code is impacted. No current behavior changes.
 
 6. Promotes Non-Member, Non-Friend Interfaces & Generic Reuse.
@@ -264,15 +265,12 @@ The author has little wording experience.
 
 #### Proposal
 
-The proposal utilizes the existing grammar for `operator.` but defines a new path for previously invalid syntax to enable calling free functions (or any functor) as member functions.
+The proposal utilizes the existing qualified name grammar for `operator.` but defines a new path for previously invalid syntax to enable calling free functions (or any functor) as member functions.
 
 For a call expression of the form `x.ns::f(args)`: 
 
 > [!NOTE]
 > The namespace cannot be omitted even if the current scope is the same namespace.
-
-> [!NOTE]
-> Unlike normal member access `x` does not have to a complete type.
 
 A rewrite will happen as if you had written `ns::f(x,args)` all usual rules apply.
 
@@ -295,7 +293,7 @@ This is an important difference in this paper vs others as it won't allow easier
 
 #### Considered Alternatives
 
-1. Implicit UFCS: Previous proposals tried to make `x.f()` find free functions. This can lead to more complex overload resolution and breaking changes. This proposal is the antithesis of that: it requires explicit qualification.1
+1. Implicit UFCS: Previous proposals [N4174](#N4174) tried to make `x.f()` find free functions. This can lead to more complex overload resolution and breaking changes. This proposal is the antithesis of that: it requires explicit qualification.
 
 2. Extension Methods: Previous proposals tried to make `x.f()` find free functions if the 1st argument used special constructs or names.
     a simple example that can break is for example adding `starts_with` to `std::string_view`.
@@ -337,8 +335,8 @@ int main()
 }
 ```
 
-[Godbolt](https://godbolt.org/z/GT4edGYrj) shows doing `-DFLIP=1` increases the amount of assembly to 1213 from 1077 lines just for 
-using the nicer syntax, and worse compile times due to the magic needed to implement it and burden on library developers.
+[Godbolt](https://godbolt.org/z/GT4edGYrj) shows doing `-DPIPE=1` increases the amount of assembly to 1213 from 1077 lines just for 
+using the nicer syntax, and worse compile times due to the magic needed to implement it and burden on library developers
 
 while with the paper 
 
@@ -347,7 +345,7 @@ while with the paper
         .std::views::transform(square);
 ```
 
-would result in quick debug codegen and readability and faster compile times.
+would result in quick debug codegen and same readability while compiling faster.
 
 #### Possible Issues
 
@@ -379,12 +377,40 @@ What is expected to happen if the paper is adopted? the compiler thinks `Bar::Ba
 
 [Godbolt](https://godbolt.org/z/81WP9qxq7) shows GCC and MSVC failing to compile they are looking up Bar::Baz in the namespace instead of the Base class. while Clang does look up the base class.
 
-The author position is to make the compiler think that it is a function call to the namespaced entity.
+This is the CWG issue [CWG1089](#cwg1089).
+The author position is resolve it instead by looking for typename or namespaces first then members, this would allow dependant types to use templated functions without the need for manual disambiguation.
+
+```cpp
+template<class... Ts>
+auto get_0(std::tuple<Ts...> t)
+{
+    return t.std::get<0>(); // doesn't behave as expected, treats as member lookup instead of looking for namespace std.
+}
+```
+
+The current rules would disallow this as well, this is surprising behavior, that is not useful as it also currently makes some functions impossible to write
+
+```cpp
+template<class T>
+void call_f_nonvirtual(T* p)
+{
+    p->T::f();
+}
+struct T { void f(); }
+
+struct S : T { void f(); }
+
+S s;
+call_f_nonvirtual(&s); // calls T::f! expected S::f.
+```
+
+Someone naively would think that this always call the type's member function "f" but it doesn't, it instead first says search for a base class called named T if not found see the typename parameter T, this is surprising and not useful and makes writing the above function impossible per current rules.
+
 
 #### Limitations and Impact
 
 Impact on the Standard: 
-    This is a pure extension to the language that can later aid in library design, There is no existing code that will be broken.
+    This is an extension to the language that can later aid in library design, There is no existing code that will be broken.
 
 
 
@@ -396,7 +422,7 @@ Limitations:
     // This works today and is not fully generic
     template <typename T>
     void func(T t) {
-        t.foo((; // Only finds t.foo();
+        t.foo(); // Only finds t.foo();
     }
 
     // This proposal does NOT enable this:
@@ -418,9 +444,20 @@ Limitations:
     s.::f(); // no global namespace member named f
     ```
 
+The author is fine with those limitations currently.
+
+
+#### Implementation
+
+The author has made a [clang fork](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/
+) that impelments the paper except resolving CWG1089 part.
+
+
 #### References
 
 * [N4174](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2014/n4174.pdf) - Call syntax: x.f(y) vs. f(x,y)
-* [P0251R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2016/p0251r0.pdf) - Unified Call Syntax
+* [P3021R0](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p3021r0.pdf) - Unified Call Syntax Herb Sutter 
 * [N1585](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2004/n1585.pdf) - Extension Methods
 * [UTFS Histroy](https://brevzin.github.io/c++/2019/04/13/ufcs-history/) - Barry Revzin UFCS Histroy.
+
+* [CWG1089](https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1089)
