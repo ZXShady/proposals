@@ -373,28 +373,43 @@ int main(){
 }
 ```
 
-What is expected to happen if the paper is adopted? the compiler thinks `Bar::Baz<0>(0)` is a (wrong) chained comparison or a function call? Well even without this proposal the behavior seems inconsistent between compilers
+What is expected to happen if the paper is adopted? the compiler thinks `Bar::Baz<0>(0)` is a (wrong) chained comparison or a function call? Well even without this proposal the behavior seems inconsistent between compilers that implemented or didn't implement [CWG1089](#cwg1089).
 
 [Godbolt](https://godbolt.org/z/81WP9qxq7) shows GCC and MSVC failing to compile they are looking up Bar::Baz in the namespace instead of the Base class. while Clang does look up the base class.
 
-This is the CWG issue [CWG1089](#cwg1089).
-The author position is resolve it instead by looking for typename or namespaces first then members, this would allow dependant types to use templated functions without the need for manual disambiguation.
+
+Proposed resolution.
+
+This proposal aligns with the suggested resolution for CWG1089: if a name in a qualified-id within a template definition resolves to a template parameter or **a namespace**, that name is not subject to further lookup at instantiation time.
+
+This resolution would allow types to call templated functions without manual disambiguation.
 
 ```cpp
 template<class... Ts>
 auto get_0(std::tuple<Ts...> t)
 {
-    return t.std::get<0>(); // doesn't behave as expected, treats as member lookup instead of looking for namespace std.
+    return t.std::get<0>(); 
+// old behavior:doesn't behave as expected, treats as member lookup instead of looking for namespace std.
+
+// new behavior find that namespace std is an entity at this point of definition resolve to it and stop lookup.
 }
 ```
 
-The current rules would disallow this as well, this is surprising behavior, that is not useful as it also currently makes some functions impossible to write
+If the old behavior was needed one could write
+
+```cpp
+using T = decltype(t)::std;
+return t.T::get<0>();
+```
+
+
+The resolution would also make writing some functions possible and always correct.
 
 ```cpp
 template<class T>
 void call_f_nonvirtual(T* p)
 {
-    p->T::f();
+    p->T::f(); // call the class direct f always.
 }
 struct T { void f(); }
 
@@ -404,15 +419,13 @@ S s;
 call_f_nonvirtual(&s); // calls T::f! expected S::f.
 ```
 
-Someone naively would think that this always call the type's member function "f" but it doesn't, it instead first says search for a base class called named T if not found see the typename parameter T, this is surprising and not useful and makes writing the above function impossible per current rules.
+Someone naively would think that this always call the type's member function "f" but it doesn't, it instead first says search for a base class called named T if not found see the typename parameter T, this is surprising and not really that useful to be the default and makes writing the above function with the intended semantics  impossible per the  current rules.
 
 
 #### Limitations and Impact
 
 Impact on the Standard: 
     This is an extension to the language that can later aid in library design, There is no existing code that will be broken.
-
-
 
 Limitations:
 
@@ -460,4 +473,4 @@ The author has made a [clang fork](https://github.com/ZXShady/llvm-project/blob/
 * [N1585](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2004/n1585.pdf) - Extension Methods
 * [UTFS Histroy](https://brevzin.github.io/c++/2019/04/13/ufcs-history/) - Barry Revzin UFCS Histroy.
 
-* [CWG1089](https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1089)
+* [CWG1089](https://www.open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1089) -  Template parameters in member selections.
