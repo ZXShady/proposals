@@ -463,7 +463,9 @@ The author is fine with those limitations currently.
 #### Implementation
 
 The author has made a [clang fork](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/
-) that impelments the paper except resolving CWG1089 part.
+) that impelments the paper with resolving CWG1089.
+
+[Test file](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/clang/ZXShady/alternative_free_function_calling_syntax.cpp)
 
 
 #### References
