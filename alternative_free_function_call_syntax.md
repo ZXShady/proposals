@@ -347,6 +347,80 @@ while with the paper
 
 would result in quick debug codegen and same readability while compiling faster.
 
+4. CRTP Mixins using C++23 Deducing `this`
+
+```cpp
+struct MonadicMixin 
+{
+    auto value_or(this auto&& self,auto&& default_)
+    {
+        return self ? *self : default_;
+    }
+};
+
+
+template<typename T>
+struct optional : MonadicMixin 
+{
+    /**/
+};
+
+template<typename T,typename E>
+struct expected : MonadicMixin 
+{
+    /**/
+};
+```
+
+This however is not free and causes issues with private inheritance.
+
+```cpp
+struct Thing : MonadicMixin
+{
+    optional<int> a;
+};
+
+// sizeof(Thing) == 8! not 4.
+```
+
+Due to that the base class exists twice there must be differing addresses which causes the class to grow larger than it needs to be.
+
+The proper solution would be to use CRTP to have unique base classes for each type
+
+```cpp
+template<typename CRTP>
+struct MonadicMixin 
+{
+    using P = CRTP&;
+    auto value_or(auto&& default_) 
+    {
+        return P(*this) ? *P(*this) : default_;
+    }
+};
+
+
+template<typename T>
+struct optional : MonadicMixin<optional<T>>
+{
+    /**/
+};
+
+template<typename T,typename E>
+struct expected : MonadicMixin<expected<T,E>>
+{
+    /**/
+};
+
+struct Thing : MonadicMixin<Thing>
+{
+    optional<int> a;
+};
+
+// sizeof(Thing) == 4!
+```
+
+However, this approach introduces additional complexity and is not easily teachable, especially to beginners.
+
 #### Possible Issues
 
 The syntax `x.ns::f()` is the exact same as `x.Base::f()` wouldn't there be ambiguities if there is both a namespace and a base class named like that?
@@ -457,15 +531,18 @@ Limitations:
     s.::f(); // no global namespace member named f
     ```
 
-The author is fine with those limitations currently.
+These limitations are accepted in the current proposal to preserve simplicity and minimize the scope of the change.
 
+3. Will this paper hinder real full on UFCS later?
+
+No, as this touches a different syntax, it touches `x.N::f()` while real UFCS would touch `x.f()`.
 
 #### Implementation
 
 The author has made a [clang fork](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/
 ) that impelments the paper with resolving CWG1089.
 
-[Test file](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/clang/ZXShady/alternative_free_function_calling_syntax.cpp)
+[Test file](https://github.com/ZXShady/llvm-project/blob/alternative_free_function_calling_syntax/clang/test/CXX/class.access/affcs.cpp)
 
 
 #### References
